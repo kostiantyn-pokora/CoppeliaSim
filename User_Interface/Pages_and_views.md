@@ -14,3 +14,6 @@
 ![toolbar1](toolbar1.jpg)
 
 [Панель інструментів 1]
+![toolbar2](toolbar2.jpg)
+
+Панель інструментів 2]
