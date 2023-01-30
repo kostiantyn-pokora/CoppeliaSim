@@ -67,3 +67,16 @@
 + sim.multiplyVector
 + sim.interpolateMatrices
 + sim.invertMatrix
+
+## Пози ##
+Пози — це значення, які описують перетворення кадру в 3D-просторі. У CoppeliaSim пози виражаються як таблиця з 7 елементів: (X, Y, Z, Qx, Qy, Qz, Qw), тобто позиція, за якою слідує кватерніон. Дивіться також такі функції API, пов’язані з позами:
+
++ sim.buildPose
++ sim.poseToMatrix
++ sim.matrixToPose
++ sim.getRotationAxis
++ sim.rotateAroundAxis
++ sim.multiplyPoses
++ sim.multiplyVector
++ sim.interpolatePoses
++ sim.invertPose
