@@ -53,7 +53,7 @@
  
 Ми приєднуємо дочірній сценарій до датчика зору, клацнувши [Рядок меню --> Додати --> Пов’язаний дочірній сценарій --> Безпотоковий]. Ми двічі клацаємо значок, який з’явився поруч із датчиком зору в ієрархії сцен: це відкриває дочірній сценарій, який ми щойно додали. Ми копіюємо та вставляємо наступний код у редактор скриптів, а потім закриваємо його:
 
- `function sysCall_vision(inData)
+ >`function sysCall_vision(inData)
     simVision.sensorImgToWorkImg(inData.handle) -- copy the vision sensor image to the work image
     simVision.edgeDetectionOnWorkImg(inData.handle,0.2) -- perform edge detection on the work image
     simVision.workImgToSensorImg(inData.handle) -- copy the work image to the vision sensor image buffer
