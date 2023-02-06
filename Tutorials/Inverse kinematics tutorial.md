@@ -55,3 +55,154 @@
 Клацніть будь-який об’єкт на маніпуляторі та зверніть увагу, як натомість завжди вибирається базовий об’єкт redundantRobot.
 
 Далі ми додаємо сферу маніпулювання, яку будемо використовувати для керування положенням/орієнтацією захоплення робота. Клацніть [Menu bar --> Add --> Primitive shape --> Sphere], щоб відкрити діалогове вікно примітивної форми, вкажіть 0,05 для розміру X, Y-розміру та Z-розміру, а потім зніміть прапорець біля пункту «Створити динамічну форму, що відповідає вимогам». і натисніть OK. Відкоригуйте положення щойно доданої сфери так, щоб воно було таким самим, як і redundantRob_target (за допомогою діалогового вікна координат і перетворення). Тепер сфера з’являється на кінчику маніпулятора. Перейменуйте сферу на redundantRob_manipSphere, а потім зробіть її батьківською для redundantRob_target. Зробити надлишковимRobot батьком rendundantRob_manipSphere: цільовий манекен і сфера маніпуляції тепер також є частиною моделі робота. Згорніть надлишкове дерево Robot в ієрархії сцени. Резервна модель маніпулятора готова!
+
+## Постановка оберненої кінематичної задачі ##
+
+Інверсна кінематика повністю налаштована за допомогою сценарію, що викликає відповідні команди API: ідея полягає в тому, щоб побудувати еквівалентну кінематичну модель за допомогою функцій, наданих плагіном кінематики. Підхід використовує поняття та термінологію груп IK та елементів IK.
+Виберіть об’єкт redundantRobot, а потім [Menu bar --> Add --> Associated child script --> Non-threaded], щоб приєднати дочірній сценарій до цього об’єкта. Двічі клацніть значок сценарію, який з’явився поруч із псевдонімом об’єкта, і замініть вміст сценарію таким кодом:
+```function sysCall_init()
+    -- Build a kinematic chain and 2 IK groups (undamped and damped) inside of the IK plugin environment,
+    -- based on the kinematics of the robot in the scene:
+    -- There is a simple way, and a more elaborate way (but which gives you more options/flexibility):
+
+    -- Simple way:
+    local simBase=sim.getObject('.')
+    local simTip=sim.getObject('./redundantRob_tip')
+    local simTarget=sim.getObject('./redundantRob_target')
+    -- create an IK environment:
+    ikEnv=simIK.createEnvironment()
+    -- create an IK group: 
+    ikGroup_undamped=simIK.createIkGroup(ikEnv)
+    -- set its resolution method to undamped: 
+    simIK.setIkGroupCalculation(ikEnv,ikGroup_undamped,simIK.method_pseudo_inverse,0,6)
+    -- create an IK element based on the scene content: 
+    simIK.addIkElementFromScene(ikEnv,ikGroup_undamped,simBase,simTip,simTarget,simIK.constraint_pose)
+    -- create another IK group: 
+    ikGroup_damped=simIK.createIkGroup(ikEnv)
+    -- set its resolution method to damped: 
+    simIK.setIkGroupCalculation(ikEnv,ikGroup_damped,simIK.method_damped_least_squares,1,99)
+    -- create an IK element based on the scene content: 
+    simIK.addIkElementFromScene(ikEnv,ikGroup_damped,simBase,simTip,simTarget,simIK.constraint_pose) 
+    
+    -- Elaborate way:
+    --[[
+    simBase=sim.getObject('.')
+    simTip=sim.getObject('./redundantRob_tip')
+    simTarget=sim.getObject('./redundantRob_target')
+    simJoints={}
+    for i=1,7,1 do
+        simJoints[i]=sim.getObject('./redundantRob_joint'..i)
+    end
+    ikJoints={}
+    -- create an IK environment:
+    ikEnv=simIK.createEnvironment()
+    -- create a dummy in the IK environment: 
+    ikBase=simIK.createDummy(ikEnv)
+    -- set that dummy into the same pose as its CoppeliaSim counterpart: 
+    simIK.setObjectMatrix(ikEnv,ikBase,-1,sim.getObjectMatrix(simBase,-1)) 
+    local parent=ikBase
+    for i=1,#simJoints,1 do -- loop through all joints
+        -- create a joint in the IK environment:
+        ikJoints[i]=simIK.createJoint(ikEnv,simIK.jointtype_revolute)
+        -- set it into IK mode: 
+        simIK.setJointMode(ikEnv,ikJoints[i],simIK.jointmode_ik)
+        -- set the same joint limits as its CoppeliaSim counterpart joint: 
+        local cyclic,interv=sim.getJointInterval(simJoints[i])
+        simIK.setJointInterval(ikEnv,ikJoints[i],cyclic,interv)
+        -- set the same joint lin./ang. position as its CoppeliaSim counterpart joint: 
+        simIK.setJointPosition(ikEnv,ikJoints[i],sim.getJointPosition(simJoints[i]))
+        -- set the same object pose as its CoppeliaSim counterpart joint: 
+        simIK.setObjectMatrix(ikEnv,ikJoints[i],-1,sim.getObjectMatrix(simJoints[i],-1))
+        -- set its corresponding parent: 
+        simIK.setObjectParent(ikEnv,ikJoints[i],parent,true) 
+        parent=ikJoints[i]
+    end
+    -- create the tip dummy in the IK environment:
+    ikTip=simIK.createDummy(ikEnv)
+    -- set that dummy into the same pose as its CoppeliaSim counterpart: 
+    simIK.setObjectMatrix(ikEnv,ikTip,-1,sim.getObjectMatrix(simTip,-1))
+    -- attach it to the kinematic chain: 
+    simIK.setObjectParent(ikEnv,ikTip,parent,true)
+    -- create the target dummy in the IK environment: 
+    ikTarget=simIK.createDummy(ikEnv)
+    -- set that dummy into the same pose as its CoppeliaSim counterpart: 
+    simIK.setObjectMatrix(ikEnv,ikTarget,-1,sim.getObjectMatrix(simTarget,-1))
+    -- link the two dummies: 
+    simIK.setLinkedDummy(ikEnv,ikTip,ikTarget)
+    -- create an IK group: 
+    ikGroup_undamped=simIK.createIkGroup(ikEnv)
+    -- set its resolution method to undamped: 
+    simIK.setIkGroupCalculation(ikEnv,ikGroup_undamped,simIK.method_pseudo_inverse,0,6)
+    -- make sure the robot doesn't shake if the target position/orientation wasn't reached: 
+    simIK.setIkGroupFlags(ikEnv,ikGroup_undamped,1+2+4+8)
+    -- add an IK element to that IK group: 
+    local ikElementHandle=simIK.addIkElement(ikEnv,ikGroup_undamped,ikTip)
+    -- specify the base of that IK element: 
+    simIK.setIkElementBase(ikEnv,ikGroup_undamped,ikElementHandle,ikBase)
+    -- specify the constraints of that IK element: 
+    simIK.setIkElementConstraints(ikEnv,ikGroup_undamped,ikElementHandle,simIK.constraint_pose)
+    -- create another IK group: 
+    ikGroup_damped=simIK.createIkGroup(ikEnv)
+    -- set its resolution method to damped: 
+    simIK.setIkGroupCalculation(ikEnv,ikGroup_damped,simIK.method_damped_least_squares,1,99)
+    -- add an IK element to that IK group: 
+    local ikElementHandle=simIK.addIkElement(ikEnv,ikGroup_damped,ikTip)
+    -- specify the base of that IK element: 
+    simIK.setIkElementBase(ikEnv,ikGroup_damped,ikElementHandle,ikBase)
+    -- specify the constraints of that IK element: 
+    simIK.setIkElementConstraints(ikEnv,ikGroup_damped,ikElementHandle,simIK.constraint_pose) 
+    --]]
+end
+
+function sysCall_actuation()
+    -- There is a simple way, and a more elaborate way (but which gives you more options/flexibility):
+    
+    -- Simple way:
+    -- try to solve with the undamped method:
+    if simIK.applyIkEnvironmentToScene(ikEnv,ikGroup_undamped,true)==simIK.result_fail then 
+        -- the position/orientation could not be reached.
+        -- try to solve with the damped method:
+        simIK.applyIkEnvironmentToScene(ikEnv,ikGroup_damped)
+        -- We display a IK failure report message:
+        sim.addLog(sim.verbosity_scriptwarnings,"IK solver failed.") 
+    end
+    
+    -- Elaborate way:
+    --[[
+    -- reflect the pose of the target dummy to its counterpart in the IK environment:
+    simIK.setObjectMatrix(ikEnv,ikTarget,ikBase,sim.getObjectMatrix(simTarget,simBase)) 
+    -- try to solve with the undamped method:
+    if simIK.handleIkGroup(ikEnv,ikGroup_undamped)==simIK.result_fail then 
+        -- the position/orientation could not be reached.
+        -- try to solve with the damped method:
+        simIK.handleIkGroup(ikEnv,ikGroup_damped)
+        -- We display a IK failure report message: 
+        sim.addLog(sim.verbosity_scriptwarnings,"IK solver failed.") 
+    end
+    -- apply the joint values computed in the IK environment to their CoppeliaSim joint counterparts:
+    for i=1,#simJoints,1 do
+        sim.setJointPosition(simJoints[i],simIK.getJointPosition(ikEnv,ikJoints[i])) 
+    end
+    --]]
+end 
+
+function sysCall_cleanup()
+    -- erase the IK environment: 
+    simIK.eraseEnvironment(ikEnv) 
+end 
+```
+Наведений вище сценарій створює еквівалентну кінематичну модель із моделі CoppeliaSim, потім на кожному кроці симуляції зчитує позицію/орієнтацію цілі CoppeliaSim, застосовує її до цілі еквівалентної кінематичної моделі, запускає розв’язувач IK і, нарешті, зчитує кути з’єднання еквівалентної кінематичної моделі та застосовує їх до з’єднань моделі CoppeliaSim. Для обробки окремих конфігурацій і ситуацій, коли ціль недосяжна, ми спочатку намагаємося використовувати незатухаючий розв’язувач, а якщо це не вдається, ми повертаємося до демпфованого розв’язувача (з демпфованим розв’язувачем, коли демпфування велике, роздільна здатність стає більш стабільною але зближення повільніше).
+
+## Запуск моделювання ##
+
+Наша зворотна задача з кінематики готова! Давайте перевіримо це. Запустіть симуляцію, а потім виберіть зелену сферу маніпуляції. Далі виберіть кнопку панелі інструментів перекладу об’єктів:
+
+![image](https://user-images.githubusercontent.com/121936602/217078451-2a0efcd7-2011-4f1f-b1d0-52a7d596a6c6.png)
+
+Тепер перетягніть об'єкт мишею: маніпулятор повинен слідувати. Також спробуйте кнопку обертання об’єкта на панелі інструментів:
+
+![image](https://user-images.githubusercontent.com/121936602/217078530-d56537e4-0071-4db1-8ffc-b510f99e9335.png)
+
+Спробуйте також утримувати клавіші ctr або shift під час маніпуляції. Поверніться до кнопки панелі інструментів перекладу об’єкта та спробуйте перетягнути об’єкт якомога далі, і зверніть увагу на те, що обернена кінематична задача досить надійна завдяки демпфованій компоненті. Зупиніть симуляцію, потім вимкніть демпфовану групу IK і повторіть спробу. Спробуйте також вимкнути індивідуальні обмеження у відповідному елементі IK і зверніть увагу на те, як поводиться маніпулятор під час симуляції.
+Запустіть симуляцію та кілька разів скопіюйте та вставте маніпулятор і перемістіть/обертайте копії, також змінюючи їхні конфігурації, перетягуючи їхні сфери маніпулювання. Зверніть увагу, що кожен екземпляр маніпулятора повністю функціональний щодо IK.
+
