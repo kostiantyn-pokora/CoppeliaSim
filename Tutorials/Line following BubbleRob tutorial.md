@@ -114,3 +114,4 @@ function sysCall_cleanup()
     simUI.destroy(ui)
 end 
 ```
+Ви можете легко налагодити свою лінію за такими датчиками зору: виберіть один, потім у перегляді сцени виберіть [Right-click --> Add --> Floating view], а потім у щойно доданому плаваючому перегляді виберіть [Right click --> View --> Associate view with selected vision sensor].
