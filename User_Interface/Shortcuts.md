@@ -1,6 +1,6 @@
 # Ярлики #
 
-Коли фокус знаходиться на ієрархії сцени або сторінці, підтримуються наступні комбінації клавіш:
+Коли фокус знаходиться на [ієрархії сцени](https://www.coppeliarobotics.com/helpFiles/en/userInterface.htm#SceneHierarchy) або [сторінці](https://www.coppeliarobotics.com/helpFiles/en/pagesAndViews.htm), підтримуються наступні комбінації клавіш:
 
 **CTRL+A:** вибрати все
 
